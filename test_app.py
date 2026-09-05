@@ -1,4 +1,8 @@
 import unittest
+from unittest.mock import patch, MagicMock
+from pathlib import Path
+import tempfile
+import generate
 import xml.etree.ElementTree as ET
 from defusedxml.common import DefusedXmlException
 from app import SafeET, make_feed, plain_text
@@ -33,6 +37,22 @@ class FeedSafetyTests(unittest.TestCase):
         with self.assertRaises(DefusedXmlException):
             SafeET.fromstring('<!DOCTYPE rss [<!ENTITY test SYSTEM "file:///etc/passwd">]><rss>&test;</rss>')
 
+    def test_second_source_failure_preserves_published_feeds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'ap.xml').write_bytes(b'previous AP feed')
+            (root / 'yahoo.xml').write_bytes(b'previous Yahoo feed')
+            with patch.dict('os.environ', {'OUTPUT_DIR': directory}), \
+                 patch.object(generate, 'DATA', root), \
+                 patch.object(generate, 'Translator', return_value=MagicMock()), \
+                 patch.object(generate, 'get_feed', side_effect=[object(), RuntimeError('source unavailable')]), \
+                 patch.object(generate, 'make_feed', return_value=(b'new AP feed', 1)):
+                with self.assertRaises(RuntimeError):
+                    generate.main()
+            self.assertEqual((root / 'ap.xml').read_bytes(), b'previous AP feed')
+            self.assertEqual((root / 'yahoo.xml').read_bytes(), b'previous Yahoo feed')
+
 
 if __name__ == '__main__':
     unittest.main()
+
