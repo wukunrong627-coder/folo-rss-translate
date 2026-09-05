@@ -1,0 +1,7 @@
+__pycache__/
+data/
+models/
+*.argosmodel
+*.sqlite*
+.env
+.cache/

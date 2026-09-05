@@ -1,0 +1,60 @@
+name: Translate and publish RSS
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ['public/**']
+  schedule:
+    - cron: '17,47 * * * *'
+
+permissions:
+  contents: write
+concurrency:
+  group: publish-rss
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      RSSHUB_BASE_URL: http://127.0.0.1:1200
+      MODEL_DIR: models
+      DATA_DIR: .cache/translation
+      OUTPUT_DIR: public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: models
+          key: argos-en-zh-1.9-433e7c4f
+      - uses: actions/cache@v4
+        with:
+          path: .cache/translation
+          key: translation-v3-${{ github.run_id }}
+          restore-keys: translation-v3-
+      - run: python download_model.py
+      - name: Start RSSHub
+        run: |
+          docker run -d --name rsshub -p 127.0.0.1:1200:1200 diygod/rsshub:chromium-bundled@sha256:2615a2dabb1b6065097aba5768d177fa981c7c1694d410e6118aa7ca7840943f
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:1200/healthz; then exit 0; fi
+            sleep 2
+          done
+          docker logs rsshub
+          exit 1
+      - run: python -m unittest -v test_app.py
+      - run: python generate.py
+      - name: Publish feeds
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/ap.xml public/yahoo.xml public/status.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Update bilingual RSS feeds'
+          git push origin HEAD:main

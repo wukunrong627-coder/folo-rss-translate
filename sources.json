@@ -1,0 +1,4 @@
+[
+  {"id":"ap","title":"美联社热门新闻 · 中英对照","url":"http://host.docker.internal:1200/apnews/topics/trending-news","site":"https://apnews.com/hub/trending-news","max_items":20},
+  {"id":"yahoo","title":"Yahoo 国际新闻 · 中英对照","url":"http://host.docker.internal:1200/yahoo/news/us/world","site":"https://news.yahoo.com/world/","max_items":20}
+]
